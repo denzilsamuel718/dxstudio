@@ -23,9 +23,10 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const fadeAnimRef = useRef<number | null>(null);
+  const fadeIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const fadeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Authoritative State Tracking Refs to eliminate race conditions & stale closures
+  // Authoritative State Tracking Refs
   const userWantsSoundRef = useRef<boolean>(false);
   const userManuallyPausedRef = useRef<boolean>(true);
   const wasPlayingBeforeHiddenRef = useRef<boolean>(false);
@@ -41,35 +42,51 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     setIsMuted(muted);
   }, []);
 
-  // Smooth Volume Ramping Helper using requestAnimationFrame
+  // Timer-based Volume Ramping (Works reliably across background tabs unlike requestAnimationFrame)
   const fadeVolume = useCallback((targetVol: number, duration: number, onComplete?: () => void) => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    if (fadeAnimRef.current) {
-      cancelAnimationFrame(fadeAnimRef.current);
-      fadeAnimRef.current = null;
+    if (fadeIntervalRef.current) {
+      clearInterval(fadeIntervalRef.current);
+      fadeIntervalRef.current = null;
+    }
+    if (fadeTimeoutRef.current) {
+      clearTimeout(fadeTimeoutRef.current);
+      fadeTimeoutRef.current = null;
     }
 
     const startVol = audio.volume;
-    const startTime = performance.now();
+    const startTime = Date.now();
+    const stepInterval = 20; // 20ms precision steps
 
-    const animateFade = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
+    fadeIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
 
       audio.volume = Math.max(0, Math.min(1, startVol + (targetVol - startVol) * progress));
 
-      if (progress < 1) {
-        fadeAnimRef.current = requestAnimationFrame(animateFade);
-      } else {
+      if (progress >= 1) {
+        if (fadeIntervalRef.current) {
+          clearInterval(fadeIntervalRef.current);
+          fadeIntervalRef.current = null;
+        }
         audio.volume = targetVol;
-        fadeAnimRef.current = null;
         if (onComplete) onComplete();
       }
-    };
+    }, stepInterval);
 
-    fadeAnimRef.current = requestAnimationFrame(animateFade);
+    // Guaranteed fallback timeout to ensure completion even under background timer throttling
+    fadeTimeoutRef.current = setTimeout(() => {
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      }
+      if (audio) {
+        audio.volume = targetVol;
+      }
+      if (onComplete) onComplete();
+    }, duration + 20);
   }, []);
 
   // Primary Page Visibility & Lifecycle Event Listeners
@@ -106,16 +123,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
         // Fast subtle 350ms fade-out down to 0, then pause
         fadeVolume(0, EXIT_FADE_DURATION, () => {
-          // Only pause if still hidden or auto-paused (prevents pausing if user quickly returned)
           if (document.hidden || isAutoPausedRef.current) {
             audio.pause();
             updatePlaybackState(false);
           }
         });
       } else {
-        if (fadeAnimRef.current) {
-          cancelAnimationFrame(fadeAnimRef.current);
-          fadeAnimRef.current = null;
+        if (fadeIntervalRef.current) {
+          clearInterval(fadeIntervalRef.current);
+          fadeIntervalRef.current = null;
+        }
+        if (fadeTimeoutRef.current) {
+          clearTimeout(fadeTimeoutRef.current);
+          fadeTimeoutRef.current = null;
         }
         if (!audio.paused) {
           audio.pause();
@@ -135,9 +155,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         !userManuallyPausedRef.current
       ) {
         // Cancel any pending fade-out immediately
-        if (fadeAnimRef.current) {
-          cancelAnimationFrame(fadeAnimRef.current);
-          fadeAnimRef.current = null;
+        if (fadeIntervalRef.current) {
+          clearInterval(fadeIntervalRef.current);
+          fadeIntervalRef.current = null;
+        }
+        if (fadeTimeoutRef.current) {
+          clearTimeout(fadeTimeoutRef.current);
+          fadeTimeoutRef.current = null;
         }
 
         wasPlayingBeforeHiddenRef.current = false;
@@ -185,8 +209,11 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pagehide', handlePageHide);
-      if (fadeAnimRef.current) {
-        cancelAnimationFrame(fadeAnimRef.current);
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+      }
+      if (fadeTimeoutRef.current) {
+        clearTimeout(fadeTimeoutRef.current);
       }
     };
   }, [fadeVolume, updateMuteState, updatePlaybackState]);
@@ -303,7 +330,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         previousVolumeRef.current = audio.volume;
       }
 
-      // Smooth asynchronous 300ms fade-out before pausing
+      // Smooth asynchronous 350ms fade-out before pausing (reliable in background via interval/timeout)
       if (audio && !audio.paused) {
         fadeVolume(0, EXIT_FADE_DURATION, () => {
           if (isAutoPausedRef.current) {
@@ -314,7 +341,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Open external URL immediately in new tab exactly as existing behavior
+    // Open external URL in new tab
     window.open(url, '_blank', 'noopener,noreferrer');
   }, [fadeVolume, updatePlaybackState]);
 

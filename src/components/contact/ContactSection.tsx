@@ -4,14 +4,21 @@ import { useState } from 'react';
 import { studioConfig } from '@/data/studio';
 import { MagneticButton } from './MagneticButton';
 import { Magnetic } from '@/components/ui/Magnetic';
+import { useAudio } from '@/context/AudioContext';
 
 export function ContactSection() {
   const [copied, setCopied] = useState(false);
+  const { handleExternalProjectOpen } = useAudio();
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(studioConfig.email);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleSocialClick = (e: React.MouseEvent, href: string) => {
+    e.preventDefault();
+    handleExternalProjectOpen(href);
   };
 
   return (
@@ -63,7 +70,8 @@ export function ContactSection() {
               href={social.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between p-5 sm:p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-dx-purple-bright/40 hover:bg-white/[0.04] transition-all duration-300 w-full"
+              onClick={(e) => handleSocialClick(e, social.href)}
+              className="group flex items-center justify-between p-5 sm:p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-dx-purple-bright/40 hover:bg-white/[0.04] transition-all duration-300 w-full cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <span className="w-2 h-2 rounded-full bg-dx-purple-bright shadow-[0_0_8px_#A64DFF]" />
