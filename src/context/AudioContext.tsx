@@ -14,8 +14,8 @@ interface AudioContextType {
 const AudioContext = createContext<AudioContextType | null>(null);
 
 const TARGET_VOLUME = 0.22;
-const FADE_IN_DURATION = 750; // ms
-const FADE_OUT_DURATION = 350; // ms
+const FADE_IN_DURATION = 600; // ms
+const FADE_OUT_DURATION = 300; // ms
 
 export function AudioProvider({ children }: { children: ReactNode }) {
   const [isMuted, setIsMuted] = useState<boolean>(true);
@@ -24,20 +24,18 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeAnimRef = useRef<number | null>(null);
 
-  // Explicit state refs to prevent stale closures in lifecycle event listeners
+  // Authoritative State Tracking Refs to eliminate race conditions & stale closures
   const userWantsSoundRef = useRef<boolean>(false);
-  const isPlayingRef = useRef<boolean>(false);
+  const userManuallyPausedRef = useRef<boolean>(true);
   const wasPlayingBeforeHiddenRef = useRef<boolean>(false);
-  const isMutedRef = useRef<boolean>(true);
+  const isAutoPausedRef = useRef<boolean>(false);
 
-  // Synchronize state and refs safely
+  // Synchronize React state
   const updatePlaybackState = useCallback((playing: boolean) => {
-    isPlayingRef.current = playing;
     setIsPlaying(playing);
   }, []);
 
   const updateMuteState = useCallback((muted: boolean) => {
-    isMutedRef.current = muted;
     setIsMuted(muted);
   }, []);
 
@@ -79,61 +77,66 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       const savedPreference = sessionStorage.getItem('dx-studio-sound');
       if (savedPreference === 'on') {
         userWantsSoundRef.current = true;
+        userManuallyPausedRef.current = false;
         updateMuteState(false);
       } else {
         userWantsSoundRef.current = false;
+        userManuallyPausedRef.current = true;
         updateMuteState(true);
       }
     } catch {
       // Safe fallback
     }
 
-    // Immediately pause when tab is hidden, app switched, or page minimized
+    // Immediately pause when tab/window is hidden or backgrounded
     const handlePauseOnHidden = () => {
       const audio = audioRef.current;
       if (!audio) return;
 
-      // Cancel any active volume animation immediately
+      // Cancel any active volume fade animation
       if (fadeAnimRef.current) {
         cancelAnimationFrame(fadeAnimRef.current);
         fadeAnimRef.current = null;
       }
 
-      // Check if audio was actively playing before becoming hidden
-      const isCurrentlyPlaying = !audio.paused && audio.currentTime > 0 && !audio.ended && audio.readyState > 2;
-      wasPlayingBeforeHiddenRef.current = isCurrentlyPlaying || isPlayingRef.current;
+      // If user had sound active and not manually paused, record that it was auto-paused
+      if (userWantsSoundRef.current && !userManuallyPausedRef.current) {
+        wasPlayingBeforeHiddenRef.current = true;
+        isAutoPausedRef.current = true;
+      }
 
-      // Immediately pause without background leak
+      // Immediately pause audio to prevent background audio leaks
       if (!audio.paused) {
         audio.pause();
       }
       updatePlaybackState(false);
     };
 
-    // Resume when tab is visible again ONLY IF it was playing before being hidden
+    // Resume when tab/window becomes visible again ONLY IF it was playing before being hidden
     const handleResumeOnVisible = () => {
       const audio = audioRef.current;
       if (!audio) return;
 
-      if (document.visibilityState === 'visible') {
-        if (
-          wasPlayingBeforeHiddenRef.current &&
-          userWantsSoundRef.current &&
-          !isMutedRef.current
-        ) {
-          audio.loop = true;
-          audio.volume = 0;
-          audio.play()
+      if (
+        (wasPlayingBeforeHiddenRef.current || isAutoPausedRef.current) &&
+        userWantsSoundRef.current &&
+        !userManuallyPausedRef.current
+      ) {
+        audio.loop = true;
+        audio.volume = TARGET_VOLUME;
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise
             .then(() => {
               updatePlaybackState(true);
-              fadeVolume(TARGET_VOLUME, FADE_IN_DURATION);
+              wasPlayingBeforeHiddenRef.current = false;
+              isAutoPausedRef.current = false;
             })
             .catch(() => {
-              // Browser autoplay policy prevented playback
-              updatePlaybackState(false);
+              // Autoplay restrictions safety catch
             });
         }
-        wasPlayingBeforeHiddenRef.current = false;
       }
     };
 
@@ -145,7 +148,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // pagehide handles mobile browser minimization, app switching, lock screen
     const handlePageHide = () => {
       handlePauseOnHidden();
     };
@@ -172,6 +174,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     } catch {}
 
     userWantsSoundRef.current = true;
+    userManuallyPausedRef.current = false;
+    wasPlayingBeforeHiddenRef.current = false;
+    isAutoPausedRef.current = false;
     updateMuteState(false);
 
     try {
@@ -187,6 +192,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       updatePlaybackState(false);
       updateMuteState(true);
       userWantsSoundRef.current = false;
+      userManuallyPausedRef.current = true;
     }
   }, [fadeVolume, updateMuteState, updatePlaybackState]);
 
@@ -197,7 +203,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     } catch {}
 
     userWantsSoundRef.current = false;
+    userManuallyPausedRef.current = true;
     wasPlayingBeforeHiddenRef.current = false;
+    isAutoPausedRef.current = false;
     updateMuteState(true);
     updatePlaybackState(false);
 
@@ -211,10 +219,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
 
-    if (isMutedRef.current || audio.paused || audio.volume === 0) {
-      // Unmute: Fade in from current position
+    if (userManuallyPausedRef.current || audio.paused || audio.volume === 0) {
+      // User explicitly turns sound ON
       updateMuteState(false);
       userWantsSoundRef.current = true;
+      userManuallyPausedRef.current = false;
+      wasPlayingBeforeHiddenRef.current = false;
+      isAutoPausedRef.current = false;
       try {
         sessionStorage.setItem('dx-studio-sound', 'on');
       } catch {}
@@ -231,12 +242,15 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         updatePlaybackState(false);
         updateMuteState(true);
         userWantsSoundRef.current = false;
+        userManuallyPausedRef.current = true;
       }
     } else {
-      // Mute: Fade out smoothly to 0, then pause
+      // User explicitly turns sound OFF (Manual Pause)
       updateMuteState(true);
       userWantsSoundRef.current = false;
+      userManuallyPausedRef.current = true;
       wasPlayingBeforeHiddenRef.current = false;
+      isAutoPausedRef.current = false;
       try {
         sessionStorage.setItem('dx-studio-sound', 'off');
       } catch {}
@@ -248,11 +262,16 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     }
   }, [fadeVolume, updateMuteState, updatePlaybackState]);
 
-  // Handle Opening External Project Website (Immediate audio pause before opening external tab)
+  // Handle Opening External Project Website (Auto-pause and resume when visitor returns)
   const handleExternalProjectOpen = useCallback((url: string) => {
     const audio = audioRef.current;
 
-    // Immediately cancel any fade animation and pause audio
+    // If audio is active, mark it as auto-paused so it resumes upon return
+    if (userWantsSoundRef.current && !userManuallyPausedRef.current) {
+      wasPlayingBeforeHiddenRef.current = true;
+      isAutoPausedRef.current = true;
+    }
+
     if (fadeAnimRef.current) {
       cancelAnimationFrame(fadeAnimRef.current);
       fadeAnimRef.current = null;
@@ -262,7 +281,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       audio.pause();
       updatePlaybackState(false);
     }
-    wasPlayingBeforeHiddenRef.current = false;
 
     // Open external URL in new tab exactly as existing behavior
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -289,7 +307,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         onPause={() => updatePlaybackState(false)}
         onEnded={() => {
           // Bulletproof loop fallback
-          if (audioRef.current && userWantsSoundRef.current && !isMutedRef.current) {
+          if (audioRef.current && userWantsSoundRef.current && !userManuallyPausedRef.current) {
             audioRef.current.currentTime = 0;
             audioRef.current.play().catch(() => {});
           }
