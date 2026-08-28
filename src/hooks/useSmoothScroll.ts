@@ -9,7 +9,6 @@ export function useSmoothScroll() {
   const lenisRef = useRef<Lenis | null>(null);
 
   useEffect(() => {
-    // Only run in browser
     if (typeof window === 'undefined') return;
 
     gsap.registerPlugin(ScrollTrigger);
@@ -19,14 +18,23 @@ export function useSmoothScroll() {
     }
     window.scrollTo(0, 0);
 
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+
+    // On touch/mobile devices, rely on 100% native hardware momentum scrolling
+    if (isTouch) {
+      ScrollTrigger.config({ autoRefreshEvents: 'visibilitychange,DOMContentLoaded,load,resize' });
+      return;
+    }
+
+    // On desktop, initialize full premium Lenis smooth-wheel momentum
     const lenis = new Lenis({
-      duration: 1.2,
+      duration: 1.1,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: true,
-      wheelMultiplier: 1,
-      touchMultiplier: 1.5,
+      wheelMultiplier: 0.95,
+      touchMultiplier: 1,
     });
     lenis.scrollTo(0, { immediate: true });
 

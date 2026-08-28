@@ -20,16 +20,16 @@ export function ProjectsSection() {
     <section
       ref={containerRef}
       id="projects"
-      className="relative w-full py-24 md:py-36 px-6 md:px-12 max-w-[1540px] mx-auto"
+      className="relative w-full py-20 sm:py-24 md:py-36 px-4 sm:px-6 md:px-12 max-w-[1540px] mx-auto overflow-hidden"
     >
       {/* Section Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/[0.08] pb-8 mb-16 md:mb-24">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/[0.08] pb-6 sm:pb-8 mb-12 sm:mb-16 md:mb-24">
+        <div className="max-w-full">
           <div className="flex items-center gap-3 font-mono text-xs uppercase tracking-widest text-dx-purple-bright mb-3">
             <span className="inline-block w-2 h-2 rounded-sm bg-dx-purple-bright" />
             <span>01 / SELECTED WORK</span>
           </div>
-          <h2 className="font-display text-5xl md:text-8xl font-black uppercase tracking-tight text-white">
+          <h2 className="font-display text-[clamp(2.2rem,7.8vw,5.5rem)] sm:text-6xl md:text-7xl lg:text-8xl font-black uppercase tracking-tight text-white leading-[0.95] max-w-full break-words">
             FEATURED PRODUCTIONS
           </h2>
         </div>
@@ -43,7 +43,7 @@ export function ProjectsSection() {
       </div>
 
       {/* Projects Showcase Container */}
-      <div className="space-y-12 md:space-y-20">
+      <div className="space-y-10 sm:space-y-12 md:space-y-20">
         {/* Project 01: Knot */}
         <div>
           <ProjectCardSticky

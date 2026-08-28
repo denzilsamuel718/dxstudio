@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Project } from '@/types/project';
 import { TRANSITION_EASE } from '@/utils/animations';
 import Image from 'next/image';
+import { useAudio } from '@/context/AudioContext';
 
 interface ProjectModalProps {
   project: Project | null;
@@ -12,6 +13,8 @@ interface ProjectModalProps {
 }
 
 export function ProjectModal({ project, onClose }: ProjectModalProps) {
+  const { handleExternalProjectOpen } = useAudio();
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -29,6 +32,11 @@ export function ProjectModal({ project, onClose }: ProjectModalProps) {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [project, onClose]);
+
+  const handleOpenLive = (e: React.MouseEvent, url: string) => {
+    e.preventDefault();
+    handleExternalProjectOpen(url);
+  };
 
   return (
     <AnimatePresence>
@@ -69,10 +77,10 @@ export function ProjectModal({ project, onClose }: ProjectModalProps) {
               <span>{project.year}</span>
             </div>
 
-            <h2 className="font-display text-3xl sm:text-5xl md:text-6xl font-black uppercase tracking-tight text-white mb-3 pr-10">
+            <h2 className="font-display text-[clamp(1.75rem,5.5vw,3.75rem)] font-black uppercase tracking-tight text-white mb-3 pr-10 break-words">
               {project.title}
             </h2>
-            <p className="text-base sm:text-lg md:text-xl text-foreground-secondary font-medium mb-6 sm:mb-8">
+            <p className="text-sm sm:text-base md:text-xl text-foreground-secondary font-medium mb-6 sm:mb-8">
               {project.tagline}
             </p>
 
@@ -169,15 +177,13 @@ export function ProjectModal({ project, onClose }: ProjectModalProps) {
 
               <div className="flex gap-4 w-full sm:w-auto justify-end order-1 sm:order-2">
                 {project.liveUrl && (
-                  <a
-                    href={project.liveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full sm:w-auto px-6 py-3 rounded-full bg-dx-purple hover:bg-dx-purple-bright text-xs font-mono uppercase tracking-wider text-white font-bold transition-colors shadow-[0_0_15px_rgba(124,42,232,0.5)] flex items-center justify-center gap-2"
+                  <button
+                    onClick={(e) => handleOpenLive(e, project.liveUrl!)}
+                    className="w-full sm:w-auto px-6 py-3 rounded-full bg-dx-purple hover:bg-dx-purple-bright text-xs font-mono uppercase tracking-wider text-white font-bold transition-colors shadow-[0_0_15px_rgba(124,42,232,0.5)] flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span>Live Preview</span>
                     <span>↗</span>
-                  </a>
+                  </button>
                 )}
               </div>
             </div>

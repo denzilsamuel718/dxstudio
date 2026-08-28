@@ -19,11 +19,11 @@ export function MobileMenu({ isOpen, onClose, activeSection }: MobileMenuProps) 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.4 }}
-          className="fixed inset-0 z-[9990] bg-[#050505]/98 backdrop-blur-2xl flex flex-col justify-between p-8 pt-28 md:hidden"
+          transition={{ duration: 0.35 }}
+          className="fixed inset-0 z-[9990] bg-[#050505]/98 backdrop-blur-2xl flex flex-col justify-between p-6 sm:p-8 pt-24 sm:pt-28 lg:hidden overflow-y-auto"
         >
           {/* Menu Navigation Links */}
-          <div className="flex flex-col gap-6 my-auto">
+          <div className="flex flex-col gap-5 sm:gap-6 my-auto">
             {studioConfig.navLinks.map((link, idx) => {
               const linkId = link.href.replace('#', '');
               const isActive = activeSection === linkId;
@@ -36,8 +36,8 @@ export function MobileMenu({ isOpen, onClose, activeSection }: MobileMenuProps) 
                     initial={{ y: '100%', opacity: 0 }}
                     animate={{ y: '0%', opacity: 1 }}
                     exit={{ y: '100%', opacity: 0 }}
-                    transition={{ duration: 0.7, ease: TRANSITION_EASE, delay: idx * 0.08 }}
-                    className={`font-display text-4xl font-extrabold uppercase tracking-tight transition-colors flex items-center justify-between group ${
+                    transition={{ duration: 0.6, ease: TRANSITION_EASE, delay: idx * 0.06 }}
+                    className={`font-display text-3xl sm:text-4xl font-extrabold uppercase tracking-tight transition-colors flex items-center justify-between group ${
                       isActive ? 'text-dx-purple-bright' : 'text-foreground hover:text-dx-purple-bright'
                     }`}
                   >
@@ -61,13 +61,13 @@ export function MobileMenu({ isOpen, onClose, activeSection }: MobileMenuProps) 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.35 }}
+            transition={{ duration: 0.4, delay: 0.25 }}
             className="pt-6 border-t border-white/[0.08] flex flex-col gap-4"
           >
             <div className="flex justify-between items-center text-xs text-foreground-secondary font-mono">
               <LiveClock />
             </div>
-            <p className="text-xs text-foreground-secondary/70 font-mono uppercase tracking-wider">
+            <p className="text-[11px] text-foreground-secondary/70 font-mono uppercase tracking-wider">
               {studioConfig.tagline}
             </p>
           </motion.div>
